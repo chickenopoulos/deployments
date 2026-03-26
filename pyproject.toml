@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "deployments"
+version = "0.1.0"
+description = "Minimal signal-generation pipeline for shadow trading deployments"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "pandas",
+  "numpy",
+  "pyyaml",
+  "requests",
+  "tqdm",
+  "python-dotenv",
+  "pyarrow",
+  "vectorbt",
+  "empyrical-reloaded",
+]
+
+[project.scripts]
+dpl-run-pipeline = "deployments.run_pipeline:main"
+dpl-refresh-binance-ohlcv = "deployments.scrappers.binance_ohlcv:main"
+dpl-refresh-coinglass = "deployments.scrappers.coinglass:main"
+dpl-refresh-bgeometrics = "deployments.scrappers.bgeometrics:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["deployments*"]

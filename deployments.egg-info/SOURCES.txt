@@ -1,0 +1,8 @@
+README.md
+pyproject.toml
+deployments.egg-info/PKG-INFO
+deployments.egg-info/SOURCES.txt
+deployments.egg-info/dependency_links.txt
+deployments.egg-info/entry_points.txt
+deployments.egg-info/requires.txt
+deployments.egg-info/top_level.txt

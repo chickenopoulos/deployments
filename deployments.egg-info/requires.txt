@@ -1,0 +1,9 @@
+pandas
+numpy
+pyyaml
+requests
+tqdm
+python-dotenv
+pyarrow
+vectorbt
+empyrical-reloaded

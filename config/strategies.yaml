@@ -1,0 +1,8 @@
+strategies:
+  id1: {enabled: true}
+  id2: {enabled: true}
+  id3: {enabled: true}
+  id4: {enabled: true}
+  id5: {enabled: true}
+  id6: {enabled: true}
+  id7: {enabled: true}

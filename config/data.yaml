@@ -1,0 +1,9 @@
+binance_ohlcv:
+  daily_universe_source: coinglass_binance_usdt_pairs
+  daily_interval: 1d
+  intraday_symbols:
+    - BTCUSDT
+  intraday_interval: 1h
+coinglass:
+  exchange: Binance
+  quote_asset: USDT

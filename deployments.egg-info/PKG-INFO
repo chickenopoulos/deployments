@@ -1,0 +1,51 @@
+Metadata-Version: 2.4
+Name: deployments
+Version: 0.1.0
+Summary: Minimal signal-generation pipeline for shadow trading deployments
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: pandas
+Requires-Dist: numpy
+Requires-Dist: pyyaml
+Requires-Dist: requests
+Requires-Dist: tqdm
+Requires-Dist: python-dotenv
+Requires-Dist: pyarrow
+Requires-Dist: vectorbt
+Requires-Dist: empyrical-reloaded
+
+# Deployments (DPL)
+
+Minimal signal-generation repo for STF.
+
+This repo is responsible for:
+- refreshing local datasets
+- running strategy modules
+- deciding whether each strategy should rebalance
+- writing a universal `targets.json` file for STF
+
+## Minimal workflow
+
+```bash
+cd /path/to/deployments
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+cp .env.example .env
+
+# refresh data + build targets.json
+python -m deployments.run_pipeline   --target-output /path/to/shadow-trading-framework/data/targets/targets.json
+```
+
+## Add a new strategy
+
+1. Add `deployments/strategies/<strategy_id>.py`
+2. Export `STRATEGY_ID`, `REBALANCING_STYLE`, `RUN_FREQUENCY`, and `build(context)`
+3. Enable it in `config/strategies.yaml`
+4. Add the same `strategy_id` to STF `config/strategies.yaml`
+
+## Notes
+
+- Strategies read local parquet data through `deployments.data_loader`.
+- API keys are loaded from environment variables or `.env`.
+- `on_sign_change` strategies only rebalance when any target symbol changes sign versus the last published targets.

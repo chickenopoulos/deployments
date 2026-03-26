@@ -1,0 +1,5 @@
+[console_scripts]
+dpl-refresh-bgeometrics = deployments.scrappers.bgeometrics:main
+dpl-refresh-binance-ohlcv = deployments.scrappers.binance_ohlcv:main
+dpl-refresh-coinglass = deployments.scrappers.coinglass:main
+dpl-run-pipeline = deployments.run_pipeline:main
