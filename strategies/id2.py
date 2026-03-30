@@ -5,7 +5,7 @@ import pandas as pd
 import vectorbt as vbt
 
 from deployments.data_loader import load_bgeometrics, load_binance_ohlcv
-from deployments.types import StrategyContext, StrategyResult
+from deployments.strategy_types import StrategyContext, StrategyResult
 
 STRATEGY_ID = "id2"
 REBALANCING_STYLE = "on_sign_change"
@@ -21,7 +21,7 @@ def get_pf():
 
     bgeometrics_data = load_bgeometrics()
     metric = bgeometrics_data.nuplSth.astype(float).copy()
-    metric = metric.resample('1h').ffill().shift(9 if 'id2' != 'id7' else 8)
+    metric = metric.resample('1h').ffill().shift(9)
     common_idx = metric.index.intersection(ohlcv.index)
     metric = metric.loc[common_idx]
     btc_price = ohlcv.close.copy().loc[common_idx]

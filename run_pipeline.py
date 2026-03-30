@@ -16,7 +16,7 @@ from deployments.target_writer import (
     persist_last_targets,
     write_targets,
 )
-from deployments.types import StrategyContext
+from deployments.strategy_types import StrategyContext
 
 
 def _load_strategy_config() -> dict:

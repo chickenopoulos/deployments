@@ -12,7 +12,7 @@ from deployments.data_loader import (
     load_coinglass_funding_rate_oi_weight,
     load_coinglass_orderbook,
 )
-from deployments.types import StrategyContext, StrategyResult
+from deployments.strategy_types import StrategyContext, StrategyResult
 
 STRATEGY_ID = "id5"
 REBALANCING_STYLE = "freq_based"

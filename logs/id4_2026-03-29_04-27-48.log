@@ -1,0 +1,31 @@
+==== START id4 2026-03-29 04:27:48 UTC ====
+==== Build targets for id4 ====
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/root/deployments/run_pipeline.py", line 125, in <module>
+    main()
+  File "/root/deployments/run_pipeline.py", line 116, in main
+    path = run_pipeline(
+           ^^^^^^^^^^^^^
+  File "/root/deployments/run_pipeline.py", line 82, in run_pipeline
+    result = _run_strategy(module, as_of_ts)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/deployments/run_pipeline.py", line 43, in _run_strategy
+    return module.build(context)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/root/deployments/strategies/id4.py", line 94, in build
+    pf = get_pf()
+         ^^^^^^^^
+  File "/root/deployments/strategies/id4.py", line 106, in get_pf
+    price, volume, liq = _load_price_volume_liq()
+                         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/deployments/strategies/id4.py", line 74, in _load_price_volume_liq
+    liq = load_coinglass_orderbook().copy()
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/deployments/data_loader.py", line 28, in load_coinglass_orderbook
+    return _read_parquet("binance_futures_orderbook_pair_coinglass.parquet")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/root/deployments/data_loader.py", line 13, in _read_parquet
+    raise FileNotFoundError(f"Required dataset not found: {path}")
+FileNotFoundError: Required dataset not found: /root/deployments/data/binance_futures_orderbook_pair_coinglass.parquet

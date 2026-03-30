@@ -17,9 +17,9 @@ from deployments.paths import DATA_DIR
 BASE_URL = 'https://open-api-v4.coinglass.com'
 PAIR_UNIVERSE_URL = f'{BASE_URL}/api/futures/supported-exchange-pairs?exchange=Binance'
 ENDPOINTS = {
-    # 'binance_futures_orderbook_pair_coinglass.parquet': '/api/futures/orderbook/ask-bids-history',
-    # 'binance_futures_funding_rate_coinglass.parquet': '/api/futures/funding-rate/history',
-    # 'binance_futures_funding_rate_oi_weight_coinglass.parquet': '/api/futures/funding-rate/oi-weight-history',
+    'binance_futures_orderbook_pair_coinglass.parquet': '/api/futures/orderbook/ask-bids-history',
+    'binance_futures_funding_rate_coinglass.parquet': '/api/futures/funding-rate/history',
+    'binance_futures_funding_rate_oi_weight_coinglass.parquet': '/api/futures/funding-rate/oi-weight-history',
     'binance_futures_basis_coinglass.parquet': '/api/futures/basis/history',
 }
 

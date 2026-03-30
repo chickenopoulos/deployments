@@ -1,0 +1,5 @@
+.env
+data/*
+!data/state/
+!data/state/**
+test.ipynb

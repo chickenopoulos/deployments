@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Iterable
 
 from deployments.paths import STATE_DIR
-from deployments.types import StrategyResult
+from deployments.strategy_types import StrategyResult
 
 
 def _sign(x: float) -> int:

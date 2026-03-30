@@ -5,7 +5,7 @@ import pandas as pd
 import vectorbt as vbt
 
 from deployments.data_loader import load_binance_ohlcv
-from deployments.types import StrategyContext, StrategyResult
+from deployments.strategy_types import StrategyContext, StrategyResult
 from deployments.utils.signals import Signal
 
 STRATEGY_ID = "id1"
