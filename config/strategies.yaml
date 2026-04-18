@@ -1,8 +1,12 @@
 strategies:
-  id1: {enabled: true}
+  id1: {enabled: false}
   id2: {enabled: true}
   id3: {enabled: true}
   id4: {enabled: true}
   id5: {enabled: true}
   id6: {enabled: true}
   id7: {enabled: true}
+  id8: {enabled: true}
+  id9: {enabled: true}
+  id10: {enabled: true}
+  id11: {enabled: true}
