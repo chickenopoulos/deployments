@@ -18,6 +18,8 @@ dependencies = [
   "pyarrow",
   "vectorbt",
   "empyrical-reloaded",
+  "streamlit>=1.28",
+  "plotly>=5.0",
 ]
 
 [project.scripts]

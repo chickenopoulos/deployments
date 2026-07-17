@@ -1,0 +1,20 @@
+[Unit]
+Description=Deployments Shadow Trading Streamlit Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/deployments/dashboard
+Environment=STF_PARQUET_ROOT=/root/shadow-trading-framework/data/parquet
+Environment=DASHBOARD_PORT=8502
+Environment=DASHBOARD_ADDRESS=0.0.0.0
+ExecStart=/root/deployments/dashboard/run.sh
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
