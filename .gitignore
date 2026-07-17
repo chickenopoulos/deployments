@@ -3,4 +3,4 @@ data/*
 !data/state/
 !data/state/**
 test.ipynb
-logs/*
+logs/*__pycache__/
