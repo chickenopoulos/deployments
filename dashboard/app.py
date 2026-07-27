@@ -21,13 +21,33 @@ from deployments.dashboard.data_loader import (
     load_fills,
 )
 from deployments.dashboard.metrics import performance_stats
+from deployments.dashboard.signal_simulation import (
+    current_signal_positions,
+    replay_signal_simulation,
+)
+
+SIMULATION_MODES = {
+    "Trade simulation": "trade",
+    "Signal simulation": "signal",
+}
 
 
 @st.cache_data(ttl=60)
-def get_strategy_bundle(strategy_id: str, allocation: float, parquet_root: str):
-    equity = load_equity(strategy_id, allocation, Path(parquet_root))
-    fills = load_fills(strategy_id, allocation, Path(parquet_root))
-    positions = current_positions(strategy_id, allocation, Path(parquet_root))
+def get_strategy_bundle(
+    strategy_id: str,
+    allocation: float,
+    parquet_root: str,
+    simulation_mode: str,
+):
+    root = Path(parquet_root)
+    if simulation_mode == "signal":
+        equity, fills, positions_history = replay_signal_simulation(strategy_id, allocation, root)
+        positions = current_signal_positions(positions_history)
+    else:
+        equity = load_equity(strategy_id, allocation, root)
+        fills = load_fills(strategy_id, allocation, root)
+        positions = current_positions(strategy_id, allocation, root)
+
     trades = build_trades_from_fills(fills)
     return equity, fills, positions, trades
 
@@ -44,7 +64,7 @@ if not strategy_ids:
     st.warning("No strategy data found.")
     st.stop()
 
-col_strategy, col_alloc = st.columns([1, 1])
+col_strategy, col_alloc, col_mode = st.columns([1, 1, 1])
 with col_strategy:
     strategy_id = st.selectbox("Strategy", strategy_ids, index=strategy_ids.index("id2") if "id2" in strategy_ids else 0)
 with col_alloc:
@@ -59,10 +79,21 @@ with col_alloc:
         index=allocations.index(default_alloc),
         format_func=lambda x: f"${x:,.0f}",
     )
+with col_mode:
+    simulation_label = st.selectbox("Simulation mode", list(SIMULATION_MODES.keys()))
+    simulation_mode = SIMULATION_MODES[simulation_label]
 
 equity, fills, positions, trades = get_strategy_bundle(
-    strategy_id, allocation, str(DEFAULT_PARQUET_ROOT)
+    strategy_id,
+    allocation,
+    str(DEFAULT_PARQUET_ROOT),
+    simulation_mode,
 )
+
+if simulation_mode == "signal":
+    st.caption("Signal simulation assumes every order fully fills (fill ratio = 1).")
+else:
+    st.caption("Trade simulation uses recorded fills, including partial execution.")
 
 st.subheader("Equity Curve")
 if equity.empty:
