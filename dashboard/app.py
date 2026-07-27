@@ -91,7 +91,10 @@ equity, fills, positions, trades = get_strategy_bundle(
 )
 
 if simulation_mode == "signal":
-    st.caption("Signal simulation assumes every order fully fills (fill ratio = 1).")
+    st.caption(
+        "Signal simulation assumes target weights are fully achieved at every rebalance. "
+        "The normalized equity path is identical across allocations."
+    )
 else:
     st.caption("Trade simulation uses recorded fills, including partial execution.")
 

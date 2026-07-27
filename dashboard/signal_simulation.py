@@ -5,14 +5,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from shadow_capacity_sim.engine.accounting import apply_fill, mark_equity
-from shadow_capacity_sim.engine.portfolio import actual_weights
-from shadow_capacity_sim.models.types import Book, FillResult
-
 from deployments.dashboard.config import DEFAULT_PARQUET_ROOT
 from deployments.dashboard.data_loader import (
     _dataset_path,
     _read_parquet,
+    list_allocations,
     load_equity,
     load_fills,
     load_positions,
@@ -23,152 +20,232 @@ def load_rebalance(strategy_id: str, allocation: float, root: Path = DEFAULT_PAR
     return _read_parquet(_dataset_path(root, "rebalance", strategy_id, allocation))
 
 
-def to_signal_fills(fills: pd.DataFrame) -> pd.DataFrame:
-    if fills.empty:
-        return fills.copy()
-
-    out = fills.copy()
-    filled = out["filled_qty"].astype(float)
-    requested = out["requested_qty"].astype(float)
-    fee = out.get("fee", 0.0).fillna(0.0).astype(float)
-    price = out["fill_price"].astype(float)
-
-    scaled_fee = fee * (requested / filled)
-    fallback_fee = requested * price * 0.0004
-    out["fee"] = scaled_fee.where(filled > 0, fallback_fee)
-    out["filled_qty"] = requested
-    out["fill_ratio"] = 1.0
-    return out
-
-
-def _signal_fee(row: pd.Series) -> float:
-    requested = float(row["requested_qty"])
-    filled = float(row["filled_qty"])
-    fee = float(row.get("fee", 0.0) or 0.0)
-    price = float(row["fill_price"])
-    if requested <= 0:
+def reference_allocation(strategy_id: str, root: Path = DEFAULT_PARQUET_ROOT) -> float:
+    allocations = list_allocations(strategy_id, root)
+    if not allocations:
         return 0.0
-    if filled > 0:
-        return fee * (requested / filled)
-    return requested * price * 0.0004
+    return max(allocations, key=lambda allocation: len(load_equity(strategy_id, allocation, root)))
 
 
-def _row_to_signal_fill(row: pd.Series) -> FillResult:
-    return FillResult(
-        strategy_id=row["strategy_id"],
-        allocation=float(row["allocation"]),
-        symbol=row["symbol"],
-        side=row["side"],
-        requested_qty=float(row["requested_qty"]),
-        filled_qty=float(row["requested_qty"]),
-        fill_price=float(row["fill_price"]),
-        fee=_signal_fee(row),
-        slippage_bps=float(row.get("slippage_bps", 0.0) or 0.0),
-        execution_style=row.get("execution_style", "taker"),
-        signal_timestamp=row["signal_timestamp"],
-        execution_timestamp_ms=int(row["execution_timestamp_ms"]),
-        bid_price=float(row["bid_price"]),
-        ask_price=float(row["ask_price"]),
-        bid_qty=float(row["bid_qty"]),
-        ask_qty=float(row["ask_qty"]),
-        max_bar_notional=float(row["max_bar_notional"]),
-        fill_ratio=1.0,
-    )
+def _infer_fee_bps(fills: pd.DataFrame) -> float:
+    if fills.empty:
+        return 4.0
+    filled = fills[fills["filled_qty"].astype(float) > 0]
+    if filled.empty:
+        return 4.0
+    notional = filled["filled_qty"].astype(float) * filled["fill_price"].astype(float)
+    fee_bps = filled["fee"].astype(float) / notional * 1e4
+    return float(fee_bps.median())
 
 
-def _signed_exposure(positions: dict[str, float], marks: dict[str, float]) -> float:
-    return sum(float(qty) * float(marks.get(symbol, 0.0)) for symbol, qty in positions.items())
+def _index_positions(positions: pd.DataFrame) -> tuple[dict[int, dict[str, float]], dict[int, dict[str, float]]]:
+    marks_by_ts: dict[int, dict[str, float]] = {}
+    targets_by_ts: dict[int, dict[str, float]] = {}
+    for ts, grp in positions.groupby("execution_timestamp_ms"):
+        ts_key = int(ts)
+        marks_by_ts[ts_key] = {row["symbol"]: float(row["mark_price"]) for _, row in grp.iterrows()}
+        targets_by_ts[ts_key] = {row["symbol"]: float(row["target_weight"]) for _, row in grp.iterrows()}
+    return marks_by_ts, targets_by_ts
 
 
-def replay_signal_simulation(
-    strategy_id: str,
-    allocation: float,
-    root: Path = DEFAULT_PARQUET_ROOT,
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    equity = load_equity(strategy_id, allocation, root)
-    fills = load_fills(strategy_id, allocation, root)
-    positions = load_positions(strategy_id, allocation, root)
-    rebalance = load_rebalance(strategy_id, allocation, root)
+def compute_unit_signal_equity(strategy_id: str, root: Path = DEFAULT_PARQUET_ROOT) -> pd.DataFrame:
+    ref_alloc = reference_allocation(strategy_id, root)
+    if ref_alloc <= 0:
+        return pd.DataFrame()
 
-    if equity.empty:
-        return equity.copy(), to_signal_fills(fills), pd.DataFrame()
+    equity_ref = load_equity(strategy_id, ref_alloc, root).sort_values("execution_timestamp_ms")
+    positions_ref = load_positions(strategy_id, ref_alloc, root)
+    rebalance_ref = load_rebalance(strategy_id, ref_alloc, root).set_index("execution_timestamp_ms")
+    fee_bps = _infer_fee_bps(load_fills(strategy_id, ref_alloc, root))
 
-    marks_by_ts = {
-        int(ts): {row["symbol"]: float(row["mark_price"]) for _, row in grp.iterrows()}
-        for ts, grp in positions.groupby("execution_timestamp_ms")
-    }
-    target_by_ts = {
-        int(ts): {row["symbol"]: float(row["target_weight"]) for _, row in grp.iterrows()}
-        for ts, grp in positions.groupby("execution_timestamp_ms")
-    }
-    trade_pos_by_ts = {
-        int(ts): {row["symbol"]: float(row["qty"]) for _, row in grp.iterrows()}
-        for ts, grp in positions.groupby("execution_timestamp_ms")
-    }
-    fills_by_ts = {int(ts): grp for ts, grp in fills.groupby("execution_timestamp_ms")}
-    funding_by_ts = {
-        int(row["execution_timestamp_ms"]): float(row.get("funding_cash", 0.0) or 0.0)
-        for _, row in rebalance.iterrows()
-    }
+    if equity_ref.empty:
+        return pd.DataFrame()
 
-    book = Book(strategy_id=strategy_id, allocation=float(allocation), cash=float(allocation), equity=float(allocation))
-    prev_trade_positions: dict[str, float] = {}
-    equity_rows: list[dict] = []
-    position_rows: list[dict] = []
+    marks_by_ts, targets_by_ts = _index_positions(positions_ref)
 
-    for _, row in equity.sort_values("execution_timestamp_ms").iterrows():
+    unit_equity = 1.0
+    weights: dict[str, float] = {}
+    prev_marks: dict[str, float] = {}
+    prev_equity_ref: float | None = None
+    prev_net_ref = 0.0
+    fees_cum = 0.0
+    funding_cum = 0.0
+    rows: list[dict] = []
+
+    for _, row in equity_ref.iterrows():
         ts = int(row["execution_timestamp_ms"])
         marks = marks_by_ts.get(ts)
+        targets = targets_by_ts.get(ts, {})
         if not marks:
             continue
 
-        mark_equity(book, marks)
+        if ts in rebalance_ref.index:
+            funding_cash = float(rebalance_ref.loc[ts, "funding_cash"])
+        else:
+            funding_cash = 0.0
 
-        funding_cash = funding_by_ts.get(ts, 0.0)
-        if funding_cash != 0.0:
-            trade_exposure = _signed_exposure(prev_trade_positions, marks)
-            signal_exposure = _signed_exposure(
-                {symbol: position.qty for symbol, position in book.positions.items()},
-                marks,
+        if prev_marks:
+            price_return = 0.0
+            for symbol, mark in marks.items():
+                weight = weights.get(symbol, 0.0)
+                previous_mark = prev_marks.get(symbol)
+                if weight != 0.0 and previous_mark and previous_mark > 0:
+                    price_return += weight * (mark / previous_mark - 1.0)
+            unit_equity *= 1.0 + price_return
+
+        if funding_cash != 0.0 and prev_equity_ref and prev_equity_ref > 0:
+            funding_return = funding_cash / prev_equity_ref
+            net_signal = sum(weights.values())
+            if abs(prev_net_ref) > 1e-12:
+                unit_equity *= 1.0 + funding_return * (net_signal / prev_net_ref)
+            elif abs(net_signal) < 1e-12:
+                pass
+            else:
+                unit_equity *= 1.0 + funding_return
+            funding_cum += unit_equity * funding_return * (
+                net_signal / prev_net_ref if abs(prev_net_ref) > 1e-12 else 1.0
             )
-            if abs(trade_exposure) > 1e-12:
-                scaled_funding = funding_cash * (signal_exposure / trade_exposure)
-                book.cash += scaled_funding
-                book.funding_cum += scaled_funding
-                mark_equity(book, marks)
 
-        if bool(row["rebalance"]) and ts in fills_by_ts:
-            for _, fill_row in fills_by_ts[ts].iterrows():
-                apply_fill(book, _row_to_signal_fill(fill_row))
+        if bool(row["rebalance"]):
+            symbols = set(weights) | set(targets)
+            turnover = sum(abs(targets.get(symbol, 0.0) - weights.get(symbol, 0.0)) for symbol in symbols)
+            if turnover > 0:
+                fee = unit_equity * turnover * fee_bps / 1e4
+                unit_equity -= fee
+                fees_cum += fee
+            weights = dict(targets)
 
-        mark_equity(book, marks)
-        weights = actual_weights(book, marks)
         gross = sum(abs(weight) for weight in weights.values())
         net = sum(weights.values())
-        targets = target_by_ts.get(ts, {})
-
-        equity_rows.append(
+        rows.append(
             {
                 "strategy_id": strategy_id,
-                "allocation": allocation,
+                "allocation": ref_alloc,
                 "signal_timestamp": row["signal_timestamp"],
                 "execution_timestamp_ms": ts,
                 "rebalance": bool(row["rebalance"]),
-                "equity": book.equity,
-                "cash": book.cash,
+                "unit_equity": unit_equity,
                 "gross_exposure": gross,
                 "net_exposure": net,
-                "realized_pnl": book.realized_pnl,
-                "fees_cum": book.fees_cum,
-                "funding_cum": book.funding_cum,
+                "fees_cum": fees_cum,
+                "funding_cum": funding_cum,
             }
         )
 
-        for symbol, position in book.positions.items():
-            if abs(position.qty) < 1e-12:
+        prev_marks = marks
+        prev_equity_ref = float(row["equity"])
+        prev_net_ref = float(row["net_exposure"])
+
+    out = pd.DataFrame(rows)
+    if out.empty:
+        return out
+
+    out["timestamp"] = pd.to_datetime(out["execution_timestamp_ms"], unit="ms", utc=True)
+    out["signal_timestamp"] = pd.to_datetime(out["signal_timestamp"], utc=True, errors="coerce")
+    return out
+
+
+def _build_signal_fills(
+    strategy_id: str,
+    allocation: float,
+    unit_equity_df: pd.DataFrame,
+    positions_ref: pd.DataFrame,
+    fee_bps: float,
+) -> pd.DataFrame:
+    if unit_equity_df.empty:
+        return pd.DataFrame()
+
+    marks_by_ts, targets_by_ts = _index_positions(positions_ref)
+    weights: dict[str, float] = {}
+    rows: list[dict] = []
+
+    for _, row in unit_equity_df.iterrows():
+        if not bool(row["rebalance"]):
+            continue
+
+        ts = int(row["execution_timestamp_ms"])
+        marks = marks_by_ts.get(ts, {})
+        targets = targets_by_ts.get(ts, {})
+        equity = float(row["unit_equity"]) * allocation
+        if not marks or not targets:
+            continue
+
+        for symbol in sorted(set(weights) | set(targets)):
+            old_weight = weights.get(symbol, 0.0)
+            new_weight = targets.get(symbol, 0.0)
+            if abs(new_weight - old_weight) < 1e-12:
                 continue
-            mark_price = marks.get(symbol, 0.0)
-            position_rows.append(
+
+            mark = marks[symbol]
+            if mark <= 0:
+                continue
+
+            old_qty = old_weight * equity / mark
+            new_qty = new_weight * equity / mark
+            order_qty = abs(new_qty - old_qty)
+            side = "BUY" if new_qty > old_qty else "SELL"
+            fee = order_qty * mark * fee_bps / 1e4
+
+            rows.append(
+                {
+                    "strategy_id": strategy_id,
+                    "allocation": allocation,
+                    "symbol": symbol,
+                    "side": side,
+                    "requested_qty": order_qty,
+                    "filled_qty": order_qty,
+                    "fill_price": mark,
+                    "fee": fee,
+                    "slippage_bps": 0.0,
+                    "execution_style": "taker",
+                    "signal_timestamp": row["signal_timestamp"],
+                    "execution_timestamp_ms": ts,
+                    "bid_price": mark,
+                    "ask_price": mark,
+                    "bid_qty": 0.0,
+                    "ask_qty": 0.0,
+                    "max_bar_notional": 0.0,
+                    "fill_ratio": 1.0,
+                }
+            )
+
+        weights = dict(targets)
+
+    if not rows:
+        return pd.DataFrame()
+
+    fills = pd.DataFrame(rows)
+    fills["timestamp"] = pd.to_datetime(fills["execution_timestamp_ms"], unit="ms", utc=True)
+    fills["signal_timestamp"] = pd.to_datetime(fills["signal_timestamp"], utc=True, errors="coerce")
+    return fills.sort_values("execution_timestamp_ms").reset_index(drop=True)
+
+
+def _build_signal_positions(
+    strategy_id: str,
+    allocation: float,
+    unit_equity_df: pd.DataFrame,
+    positions_ref: pd.DataFrame,
+) -> pd.DataFrame:
+    if unit_equity_df.empty:
+        return pd.DataFrame()
+
+    marks_by_ts, targets_by_ts = _index_positions(positions_ref)
+    rows: list[dict] = []
+
+    for _, row in unit_equity_df.iterrows():
+        ts = int(row["execution_timestamp_ms"])
+        marks = marks_by_ts.get(ts, {})
+        targets = targets_by_ts.get(ts, {})
+        equity = float(row["unit_equity"]) * allocation
+        if not marks:
+            continue
+
+        for symbol, target_weight in targets.items():
+            mark = marks.get(symbol)
+            if mark is None or mark <= 0 or abs(target_weight) < 1e-12:
+                continue
+            qty = target_weight * equity / mark
+            rows.append(
                 {
                     "strategy_id": strategy_id,
                     "allocation": allocation,
@@ -176,32 +253,46 @@ def replay_signal_simulation(
                     "execution_timestamp_ms": ts,
                     "rebalance": bool(row["rebalance"]),
                     "symbol": symbol,
-                    "qty": position.qty,
-                    "avg_entry_price": position.avg_entry_price,
-                    "mark_price": mark_price,
-                    "position_value": position.qty * mark_price,
-                    "actual_weight": weights.get(symbol, 0.0),
-                    "target_weight": targets.get(symbol, 0.0),
+                    "qty": qty,
+                    "avg_entry_price": mark,
+                    "mark_price": mark,
+                    "position_value": qty * mark,
+                    "actual_weight": target_weight,
+                    "target_weight": target_weight,
                 }
             )
 
-        prev_trade_positions = trade_pos_by_ts.get(ts, {})
+    if not rows:
+        return pd.DataFrame()
 
-    equity_df = pd.DataFrame(equity_rows)
-    equity_df["timestamp"] = pd.to_datetime(equity_df["execution_timestamp_ms"], unit="ms", utc=True)
-    equity_df["signal_timestamp"] = pd.to_datetime(equity_df["signal_timestamp"], utc=True, errors="coerce")
+    positions = pd.DataFrame(rows)
+    positions["timestamp"] = pd.to_datetime(positions["execution_timestamp_ms"], unit="ms", utc=True)
+    positions["signal_timestamp"] = pd.to_datetime(positions["signal_timestamp"], utc=True, errors="coerce")
+    return positions
 
-    signal_fills = to_signal_fills(fills)
-    if not signal_fills.empty:
-        signal_fills["timestamp"] = pd.to_datetime(signal_fills["execution_timestamp_ms"], unit="ms", utc=True)
-        signal_fills["signal_timestamp"] = pd.to_datetime(signal_fills["signal_timestamp"], utc=True, errors="coerce")
 
-    positions_df = pd.DataFrame(position_rows)
-    if not positions_df.empty:
-        positions_df["timestamp"] = pd.to_datetime(positions_df["execution_timestamp_ms"], unit="ms", utc=True)
-        positions_df["signal_timestamp"] = pd.to_datetime(positions_df["signal_timestamp"], utc=True, errors="coerce")
+def replay_signal_simulation(
+    strategy_id: str,
+    allocation: float,
+    root: Path = DEFAULT_PARQUET_ROOT,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    unit_equity_df = compute_unit_signal_equity(strategy_id, root)
+    if unit_equity_df.empty:
+        return pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
 
-    return equity_df, signal_fills, positions_df
+    ref_alloc = reference_allocation(strategy_id, root)
+    positions_ref = load_positions(strategy_id, ref_alloc, root)
+    fee_bps = _infer_fee_bps(load_fills(strategy_id, ref_alloc, root))
+
+    equity = unit_equity_df.copy()
+    equity["equity"] = equity["unit_equity"] * allocation
+    equity["allocation"] = allocation
+    equity["cash"] = np.nan
+    equity["realized_pnl"] = equity["equity"] - allocation
+
+    fills = _build_signal_fills(strategy_id, allocation, unit_equity_df, positions_ref, fee_bps)
+    positions = _build_signal_positions(strategy_id, allocation, unit_equity_df, positions_ref)
+    return equity, fills, positions
 
 
 def current_signal_positions(positions: pd.DataFrame) -> pd.DataFrame:
