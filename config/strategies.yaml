@@ -11,3 +11,4 @@ strategies:
   id10: {enabled: true}
   id11: {enabled: true}
   id12: {enabled: true}
+  id13: {enabled: true}
