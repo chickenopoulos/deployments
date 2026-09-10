@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 
 from deployments.paths import CONFIG_DIR, DATA_DIR
+from deployments.scrappers.binance_universe import load_binance_usdt_perpetual_universe
 
 BASE_URL = "https://fapi.binance.com"
 KLINES_ENDPOINT = "/fapi/v1/klines"
@@ -114,6 +115,15 @@ def load_data_config() -> dict:
         return yaml.safe_load(fh) or {}
 
 
+def resolve_daily_universe(config: dict) -> list[str]:
+    source = config.get("daily_universe_source", "binance")
+    if source == "coinglass_binance_usdt_pairs":
+        return load_coinglass_binance_usdt_universe()
+    if source in ("binance", "binance_usdt_perpetuals"):
+        return load_binance_usdt_perpetual_universe()
+    raise ValueError(f"Unsupported daily_universe_source: {source}")
+
+
 def load_coinglass_binance_usdt_universe() -> list[str]:
     load_dotenv()
     api_key = os.getenv("COINGLASS_API_KEY")
@@ -173,7 +183,7 @@ def main() -> None:
     config = load_data_config().get("binance_ohlcv", {})
 
     if args.interval == "all":
-        daily_symbols = load_coinglass_binance_usdt_universe()
+        daily_symbols = resolve_daily_universe(config)
         refresh_symbols(
             daily_symbols,
             config.get("daily_interval", "1d"),
@@ -191,7 +201,7 @@ def main() -> None:
         return
 
     if args.interval == config.get("daily_interval", "1d"):
-        symbols = load_coinglass_binance_usdt_universe()
+        symbols = resolve_daily_universe(config)
     else:
         symbols = config.get("intraday_symbols", ["BTCUSDT"])
 
