@@ -4,6 +4,10 @@ binance_ohlcv:
   intraday_symbols:
     - BTCUSDT
   intraday_interval: 1h
+yfinance_ohlcv:
+  symbols:
+    - SPY
+  interval: 1d
 coinglass:
   exchange: Binance
   quote_asset: USDT

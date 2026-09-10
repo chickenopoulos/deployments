@@ -72,6 +72,14 @@ python -m deployments.scrappers.coinglass
 python -m deployments.scrappers.bgeometrics
 ```
 
+### Yahoo Finance (cash equities / ETFs)
+
+Temporary adapter until IBKR. Writes `data/yfinance_ohlcv_1d.parquet`.
+
+```bash
+python -m deployments.scrappers.yfinance_ohlcv --interval 1d
+```
+
 ---
 
 ## Strategy Execution
@@ -86,6 +94,12 @@ Example:
 
 ```bash
 bash /root/deployments/scripts/run_strategy.sh id1
+```
+
+SPY overlay + sleeves (after the US cash close scrape):
+
+```bash
+bash /root/deployments/scripts/run_daily_spy_portfolio.sh
 ```
 
 ---

@@ -38,3 +38,8 @@ def load_coinglass_funding_rate_oi_weight() -> pd.DataFrame:
 
 def load_coinglass_basis() -> pd.DataFrame:
     return _read_parquet("binance_futures_basis_coinglass.parquet")
+
+
+def load_yfinance_ohlcv(interval: str = "1d") -> pd.DataFrame:
+    suffix = interval.replace("/", "_")
+    return _read_parquet(f"yfinance_ohlcv_{suffix}.parquet")

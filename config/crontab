@@ -16,3 +16,6 @@ PYTHONPATH=/root
 
 # Bgeometrics daily at 10:00, then id2, id3, id7
 0 10 * * * flock -n /tmp/bgeometrics_id237.lock -c 'cd /root && python -m deployments.scrappers.bgeometrics >> /var/log/deployments/bgeometrics.log 2>&1 && bash /root/deployments/scripts/run_strategy.sh id2 >> /var/log/deployments/strategy_id2.log 2>&1 && bash /root/deployments/scripts/run_strategy.sh id3 >> /var/log/deployments/strategy_id3.log 2>&1 && bash /root/deployments/scripts/run_strategy.sh id7 >> /var/log/deployments/strategy_id7.log 2>&1'
+
+# SPY yfinance after US cash close (21:15 UTC is 16:15 ET / 17:15 EDT), then id14-id17
+15 21 * * 1-5 flock -n /tmp/spy_yfinance_id14_17.lock bash /root/deployments/scripts/run_daily_spy_portfolio.sh >> /var/log/deployments/spy_yfinance_id14_17.log 2>&1
