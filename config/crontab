@@ -15,7 +15,14 @@ PYTHONPATH=/root
 0 4 * * * flock -n /tmp/coinglass_id456.lock -c 'cd /root && python -m deployments.scrappers.coinglass >> /var/log/deployments/coinglass.log 2>&1 && bash /root/deployments/scripts/run_strategy.sh id4 >> /var/log/deployments/strategy_id4.log 2>&1 && bash /root/deployments/scripts/run_strategy.sh id5 >> /var/log/deployments/strategy_id5.log 2>&1 && bash /root/deployments/scripts/run_strategy.sh id6 >> /var/log/deployments/strategy_id6.log 2>&1'
 
 # Bgeometrics daily at 10:00, then id2, id3, id7
-0 10 * * * flock -n /tmp/bgeometrics_id237.lock -c 'cd /root && python -m deployments.scrappers.bgeometrics >> /var/log/deployments/bgeometrics.log 2>&1 && bash /root/deployments/scripts/run_strategy.sh id2 >> /var/log/deployments/strategy_id2.log 2>&1 && bash /root/deployments/scripts/run_strategy.sh id3 >> /var/log/deployments/strategy_id3.log 2>&1 && bash /root/deployments/scripts/run_strategy.sh id7 >> /var/log/deployments/strategy_id7.log 2>&1'
+0 10 * * * flock -n /tmp/bgeometrics_id237.lock bash /root/deployments/scripts/run_daily_bgeometrics_id237.sh >> /var/log/deployments/bgeometrics_id237.log 2>&1
 
-# SPY yfinance after US cash close (21:15 UTC is 16:15 ET / 17:15 EDT), then id14-id17
-15 21 * * 1-5 flock -n /tmp/spy_yfinance_id14_17.lock bash /root/deployments/scripts/run_daily_spy_portfolio.sh >> /var/log/deployments/spy_yfinance_id14_17.log 2>&1
+# Equity yfinance after US cash close (21:15 UTC is 16:15 ET / 17:15 EDT), then id14-id20
+15 21 * * 1-5 flock -n /tmp/equity_yfinance_id14_20.lock bash /root/deployments/scripts/run_daily_spy_portfolio.sh >> /var/log/deployments/equity_yfinance_id14_20.log 2>&1
+
+# Mulvaney/Concretum Yahoo proxies after CME 17:00 CT (23:00 UTC covers CST and CDT), then id21-id22
+0 23 * * 1-5 flock -n /tmp/mulvaney_yfinance_id21_22.lock bash /root/deployments/scripts/run_daily_mulvaney_cta.sh >> /var/log/deployments/mulvaney_yfinance_id21_22.log 2>&1
+
+# G7 Yahoo FX overnight squeeze (id23-id29): enter near UTC day close, flatten at next open.
+50 23 * * 1-5 flock -n /tmp/g7_vc_yf_close.lock bash /root/deployments/scripts/run_daily_g7_vol_compression.sh close >> /var/log/deployments/g7_vol_compression_close.log 2>&1
+20 0 * * 1-5 flock -n /tmp/g7_vc_yf_open.lock bash /root/deployments/scripts/run_daily_g7_vol_compression.sh open >> /var/log/deployments/g7_vol_compression_open.log 2>&1

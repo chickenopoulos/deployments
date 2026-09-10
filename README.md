@@ -96,12 +96,28 @@ Example:
 bash /root/deployments/scripts/run_strategy.sh id1
 ```
 
-SPY overlay + sleeves (after the US cash close scrape):
+SPY overlay + sleeves + ETF49 (after the US cash close scrape):
 
 ```bash
 bash /root/deployments/scripts/run_daily_spy_portfolio.sh
 ```
 
+Mulvaney/Concretum replica (Yahoo futures/index proxies; after CME close):
+
+```bash
+bash /root/deployments/scripts/run_daily_mulvaney_cta.sh
+```
+
+id21 is the canonical Concretum-default book. id22 is the in-sample PSA peak (long-only, lag 0), not a second canonical spec.
+
+G7 Yahoo FX overnight squeeze (separate books; after Yahoo daily close / next open):
+
+```bash
+bash /root/deployments/scripts/run_daily_g7_vol_compression.sh close
+bash /root/deployments/scripts/run_daily_g7_vol_compression.sh open
+```
+
+id23–id29 are EURUSD, GBPUSD, USDJPY, USDCHF, AUDUSD, USDCAD, NZDUSD. Frozen BB(20,2)×IBS<0.15, buy Yahoo close, sell next Yahoo open. This incubates a yfinance snapshot bounce, not a Dukascopy FX session. Use Signal simulation on the dashboard.
 ---
 
 ## Scheduling (Cron)
@@ -140,7 +156,17 @@ PYTHONPATH=/root
 0 4 * * * flock -n /tmp/coinglass_id456.lock -c 'cd /root && python -m deployments.scrappers.coinglass >> /var/log/deployments/coinglass.log 2>&1 && bash /root/deployments/scripts/run_strategy.sh id4 >> /var/log/deployments/strategy_id4.log 2>&1 && bash /root/deployments/scripts/run_strategy.sh id5 >> /var/log/deployments/strategy_id5.log 2>&1 && bash /root/deployments/scripts/run_strategy.sh id6 >> /var/log/deployments/strategy_id6.log 2>&1'
 
 # Bgeometrics daily at 10:00, then id2, id3, id7
-0 10 * * * flock -n /tmp/bgeometrics_id237.lock -c 'cd /root && python -m deployments.scrappers.bgeometrics >> /var/log/deployments/bgeometrics.log 2>&1 && bash /root/deployments/scripts/run_strategy.sh id2 >> /var/log/deployments/strategy_id2.log 2>&1 && bash /root/deployments/scripts/run_strategy.sh id3 >> /var/log/deployments/strategy_id3.log 2>&1 && bash /root/deployments/scripts/run_strategy.sh id7 >> /var/log/deployments/strategy_id7.log 2>&1'
+0 10 * * * flock -n /tmp/bgeometrics_id237.lock bash /root/deployments/scripts/run_daily_bgeometrics_id237.sh >> /var/log/deployments/bgeometrics_id237.log 2>&1
+
+# Equity yfinance after US cash close, then id14-id20
+15 21 * * 1-5 flock -n /tmp/equity_yfinance_id14_20.lock bash /root/deployments/scripts/run_daily_spy_portfolio.sh >> /var/log/deployments/equity_yfinance_id14_20.log 2>&1
+
+# Mulvaney/Concretum Yahoo proxies after CME 17:00 CT, then id21-id22
+0 23 * * 1-5 flock -n /tmp/mulvaney_yfinance_id21_22.lock bash /root/deployments/scripts/run_daily_mulvaney_cta.sh >> /var/log/deployments/mulvaney_yfinance_id21_22.log 2>&1
+
+# G7 Yahoo FX overnight squeeze (id23-id29)
+50 23 * * 1-5 flock -n /tmp/g7_vc_yf_close.lock bash /root/deployments/scripts/run_daily_g7_vol_compression.sh close >> /var/log/deployments/g7_vol_compression_close.log 2>&1
+20 0 * * 1-5 flock -n /tmp/g7_vc_yf_open.lock bash /root/deployments/scripts/run_daily_g7_vol_compression.sh open >> /var/log/deployments/g7_vol_compression_open.log 2>&1
 ```
 
 ### Logs
