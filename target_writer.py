@@ -13,19 +13,28 @@ def _sign(x: float) -> int:
 
 
 def _normalize_targets(targets: dict[str, float]) -> dict[str, float]:
-    cleaned = {str(k): float(v) for k, v in targets.items() if float(v) != 0.0}
-    return dict(sorted(cleaned.items()))
+    # Keep explicit zeros so a declared universe (e.g. a fully-flat EW book)
+    # still reaches STF for mark-to-market. Sign-change rebalance treats
+    # missing the same as 0.0.
+    return {str(k): float(v) for k, v in sorted(targets.items())}
+
+
+def load_last_targets_document(state_path: Path | None = None) -> dict:
+    path = state_path or (STATE_DIR / "last_targets.json")
+    if not path.exists():
+        return {"signal_timestamp": "", "strategies": []}
+    with path.open("r", encoding="utf-8") as fh:
+        raw = json.load(fh)
+    if not isinstance(raw, dict):
+        return {"signal_timestamp": "", "strategies": []}
+    raw.setdefault("signal_timestamp", "")
+    raw.setdefault("strategies", [])
+    return raw
 
 
 def load_previous_targets(state_path: Path | None = None) -> dict[str, dict[str, float]]:
-    path = state_path or (STATE_DIR / "last_targets.json")
-    if not path.exists():
-        return {}
-    with path.open("r", encoding="utf-8") as fh:
-        raw = json.load(fh)
-    strategies = raw.get("strategies", [])
     out: dict[str, dict[str, float]] = {}
-    for item in strategies:
+    for item in load_last_targets_document(state_path).get("strategies", []):
         sid = item.get("strategy_id")
         targets = item.get("targets", {})
         if sid:
@@ -60,34 +69,45 @@ def build_targets_payload(results: Iterable[StrategyResult], previous: dict[str,
     return {"signal_timestamp": signal_timestamp, "strategies": strategies}
 
 
-def merge_targets_payload(previous: dict[str, dict[str, float]], payload: dict) -> dict:
-    merged = {
-        str(strategy_id): {str(k): float(v) for k, v in targets.items()}
-        for strategy_id, targets in previous.items()
+def _strategy_snapshot(item: dict, default_signal_timestamp: str = "") -> dict:
+    strategy_id = str(item.get("strategy_id", ""))
+    return {
+        "strategy_id": strategy_id,
+        "signal_timestamp": str(item.get("signal_timestamp") or default_signal_timestamp or ""),
+        "rebalance": bool(item.get("rebalance", True)),
+        "targets": {str(k): float(v) for k, v in sorted((item.get("targets") or {}).items())},
     }
 
-    latest_signal_timestamp = payload["signal_timestamp"]
 
+def merge_targets_payload(previous: dict, payload: dict) -> dict:
+    """Merge new snapshots into last_targets without rewriting other strategies' clocks.
+
+    `previous` may be the full last_targets document or the legacy weights-only map.
+    Only strategies present in `payload` are updated. Each row keeps its own
+    signal_timestamp so an hourly crypto run cannot make id18 look current.
+    """
+    by_id: dict[str, dict] = {}
+    if isinstance(previous, dict) and isinstance(previous.get("strategies"), list):
+        for item in previous.get("strategies") or []:
+            sid = str(item.get("strategy_id", ""))
+            if sid:
+                by_id[sid] = _strategy_snapshot(item)
+    else:
+        for strategy_id, targets in (previous or {}).items():
+            by_id[str(strategy_id)] = _strategy_snapshot(
+                {"strategy_id": strategy_id, "targets": targets, "rebalance": True}
+            )
+
+    default_ts = str(payload.get("signal_timestamp") or "")
     for item in payload.get("strategies", []):
-        strategy_id = str(item["strategy_id"])
-        merged[strategy_id] = {
-            str(k): float(v) for k, v in item.get("targets", {}).items()
-        }
-        item_signal_timestamp = item.get("signal_timestamp")
-        if item_signal_timestamp and item_signal_timestamp > latest_signal_timestamp:
-            latest_signal_timestamp = item_signal_timestamp
+        sid = str(item["strategy_id"])
+        by_id[sid] = _strategy_snapshot(item, default_signal_timestamp=default_ts)
 
+    timestamps = [row["signal_timestamp"] for row in by_id.values() if row.get("signal_timestamp")]
+    latest_signal_timestamp = max(timestamps) if timestamps else default_ts
     return {
         "signal_timestamp": latest_signal_timestamp,
-        "strategies": [
-            {
-                "strategy_id": strategy_id,
-                "signal_timestamp": latest_signal_timestamp,
-                "rebalance": True,
-                "targets": dict(sorted(targets.items())),
-            }
-            for strategy_id, targets in sorted(merged.items())
-        ],
+        "strategies": [by_id[key] for key in sorted(by_id)],
     }
 
 

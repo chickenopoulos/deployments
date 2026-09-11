@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from deployments.paths import CONFIG_DIR
 from deployments.target_writer import (
     build_targets_payload,
+    load_last_targets_document,
     load_previous_targets,
     merge_targets_payload,
     persist_last_targets,
@@ -82,11 +83,11 @@ def run_pipeline(
         result = _run_strategy(module, as_of_ts)
         results.append(result)
 
-    previous = load_previous_targets()
-    payload = build_targets_payload(results, previous)
+    previous_weights = load_previous_targets()
+    payload = build_targets_payload(results, previous_weights)
     target_path = write_targets(payload, target_output)
 
-    merged_payload = merge_targets_payload(previous, payload)
+    merged_payload = merge_targets_payload(load_last_targets_document(), payload)
     persist_last_targets(merged_payload)
 
     return target_path
