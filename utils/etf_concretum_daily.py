@@ -104,7 +104,7 @@ def last_covered_timestamp(close: pd.DataFrame, min_frac: float = MIN_COVERAGE_F
     if close.empty:
         raise ValueError("Empty ETF close panel")
     n_names = int(close.shape[1])
-    min_names = max(MIN_NAMES, int(math.ceil(float(min_frac) * n_names))) if n_names else MIN_NAMES
+    min_names = max(1, int(math.ceil(float(min_frac) * n_names))) if n_names else 1
     counts = close.notna().sum(axis=1)
     ok = counts[counts >= min_names]
     if ok.empty:
