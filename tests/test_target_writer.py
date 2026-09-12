@@ -1,4 +1,11 @@
 from deployments.target_writer import merge_targets_payload
+from deployments.utils.stf_targets import declared_weights
+
+
+def test_declared_weights_keep_flat_universe():
+    assert declared_weights(["SPY"], {}) == {"SPY": 0.0}
+    assert declared_weights(["SPY"], {"SPY": 1.0}) == {"SPY": 1.0}
+    assert declared_weights(["TLT", "SPY"], {"TLT": -1.0}) == {"TLT": -1.0, "SPY": 0.0}
 
 
 def test_merge_keeps_other_strategy_signal_timestamps():

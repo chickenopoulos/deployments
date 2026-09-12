@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 
 from deployments.data_loader import load_yfinance_ohlcv
+from deployments.utils.stf_targets import declared_weights
 
 Book = Literal["all_ew", "top", "bottom"]
 
@@ -206,10 +207,11 @@ def _selected_mask(lagged_score: pd.Series, book: Book) -> pd.Series:
 
 
 def _equal_weight_targets(sign_row: pd.Series, selected: pd.Series) -> dict[str, float]:
+    universe = [str(sym) for sym in sign_row.index]
     active = sign_row.where(selected.reindex(sign_row.index).fillna(False)).dropna()
     active = active[active != 0.0]
     if active.empty:
-        return {}
+        return declared_weights(universe)
     weight = 1.0 / float(len(active))
     return {str(sym): float(np.sign(val) * weight) for sym, val in active.items()}
 
@@ -249,7 +251,7 @@ def latest_book(
         "n_names_last": int(fields["close"].iloc[-1].notna().sum()),
         "n_scored": n_scored,
         "n_selected": n_selected,
-        "n_active": int(len(targets)),
+        "n_active": int(sum(1 for v in targets.values() if v != 0.0)),
         "lookback_sigma": LOOKBACK_SIGMA,
         "rank_lookback": RANK_LOOKBACK,
         "gross_exposure": float(sum(abs(v) for v in targets.values())),

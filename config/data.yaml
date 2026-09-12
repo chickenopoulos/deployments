@@ -6,7 +6,114 @@ binance_ohlcv:
   intraday_interval: 1h
 yfinance_ohlcv:
   symbols:
+    - DBA
+    - DBC
+    - DIA
+    - EEM
+    - EFA
+    - EWG
+    - EWJ
+    - EWZ
+    - FXI
+    - GDX
+    - GLD
+    - HYG
+    - IBB
+    - IEF
+    - IJH
+    - INDA
+    - ITA
+    - IWB
+    - IWM
+    - KRE
+    - LQD
+    - QQQ
+    - SHY
+    - SLV
+    - SMH
+    - SOXX
     - SPY
+    - TIP
+    - TLT
+    - UNG
+    - USO
+    - UUP
+    - VNQ
+    - XBI
+    - XHB
+    - XLB
+    - XLC
+    - XLE
+    - XLF
+    - XLI
+    - XLK
+    - XLP
+    - XLRE
+    - XLU
+    - XLV
+    - XLY
+    - XME
+    - XOP
+    - XRT
+  interval: 1d
+  # Concretum 39-name Yahoo proxies (id21/id22). Scraped separately so the ETF job stays small.
+  mulvaney_symbols:
+    - ZQ=F
+    - ZF=F
+    - IGLT.L
+    - 2510.T
+    - EXX5.DE
+    - ZB=F
+    - ZT=F
+    - ^GDAXI
+    - NQ=F
+    - ES=F
+    - ^HSI
+    - ^FTSE
+    - ^N225
+    - 6A=F
+    - 6B=F
+    - 6C=F
+    - 6E=F
+    - 6J=F
+    - 6M=F
+    - 6S=F
+    - ZL=F
+    - ZC=F
+    - ZS=F
+    - ZM=F
+    - ZW=F
+    - CT=F
+    - OJ=F
+    - KC=F
+    - CC=F
+    - SB=F
+    - BZ=F
+    - CL=F
+    - NG=F
+    - HO=F
+    - GC=F
+    - HG=F
+    - SI=F
+    - LE=F
+    - HE=F
+  g7_fx_symbols:
+    - EURUSD=X
+    - GBPUSD=X
+    - USDJPY=X
+    - USDCHF=X
+    - AUDUSD=X
+    - USDCAD=X
+    - NZDUSD=X
+dukascopy_fx:
+  pairs:
+    - EURUSD
+    - GBPUSD
+    - USDJPY
+    - USDCHF
+    - AUDUSD
+    - USDCAD
+    - NZDUSD
   interval: 1d
 coinglass:
   exchange: Binance

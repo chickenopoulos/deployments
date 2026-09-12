@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from deployments.data_loader import load_yfinance_ohlcv
+from deployments.utils.stf_targets import declared_weights
 
 SYMBOL = "SPY"
 SMA_WINDOW = 200
@@ -148,7 +149,7 @@ def overlay_want(sleeves: dict[str, pd.Series]) -> pd.Series:
 
 
 def _exposure_from_flag(on: bool) -> dict[str, float]:
-    return {SYMBOL: 1.0} if on else {}
+    return declared_weights([SYMBOL], {SYMBOL: 1.0} if on else {})
 
 
 def latest_book(

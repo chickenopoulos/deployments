@@ -17,12 +17,17 @@ PYTHONPATH=/root
 # Bgeometrics daily at 10:00, then id2, id3, id7
 0 10 * * * flock -n /tmp/bgeometrics_id237.lock bash /root/deployments/scripts/run_daily_bgeometrics_id237.sh >> /var/log/deployments/bgeometrics_id237.log 2>&1
 
-# Equity yfinance after US cash close (21:15 UTC is 16:15 ET / 17:15 EDT), then id14-id20
+# Equity yfinance after US cash close (21:15 UTC is 16:15 ET / 17:15 EDT), then id14-id20, id31, and id33
 15 21 * * 1-5 flock -n /tmp/equity_yfinance_id14_20.lock bash /root/deployments/scripts/run_daily_spy_portfolio.sh >> /var/log/deployments/equity_yfinance_id14_20.log 2>&1
 
-# Mulvaney/Concretum Yahoo proxies after CME 17:00 CT (23:00 UTC covers CST and CDT), then id21-id22
+# Mulvaney/Concretum Yahoo proxies after CME 17:00 CT (23:00 UTC covers CST and CDT), then id21-id22-id30-id32
 0 23 * * 1-5 flock -n /tmp/mulvaney_yfinance_id21_22.lock bash /root/deployments/scripts/run_daily_mulvaney_cta.sh >> /var/log/deployments/mulvaney_yfinance_id21_22.log 2>&1
 
-# G7 Yahoo FX overnight squeeze (id23-id29): enter near UTC day close, flatten at next open.
-50 23 * * 1-5 flock -n /tmp/g7_vc_yf_close.lock bash /root/deployments/scripts/run_daily_g7_vol_compression.sh close >> /var/log/deployments/g7_vol_compression_close.log 2>&1
+# G7 Yahoo FX overnight squeeze (id23-id29): enter after the daily stamp has
+# rolled (Tue-Sat 00:10 UTC), flatten at the next weekday open.
+10 0 * * 2-6 flock -n /tmp/g7_vc_yf_close.lock bash /root/deployments/scripts/run_daily_g7_vol_compression.sh close >> /var/log/deployments/g7_vol_compression_close.log 2>&1
 20 0 * * 1-5 flock -n /tmp/g7_vc_yf_open.lock bash /root/deployments/scripts/run_daily_g7_vol_compression.sh open >> /var/log/deployments/g7_vol_compression_open.log 2>&1
+
+# G7 Dukascopy inside-bar compression EW (id34 locked, id35 representatives).
+# Daily stamp T is complete at T+1d; Mon-Sat 00:15 UTC includes Friday's bar.
+15 0 * * 1-6 flock -n /tmp/g7_inside_compress_duka.lock bash /root/deployments/scripts/run_daily_g7_inside_compress.sh >> /var/log/deployments/g7_inside_compress.log 2>&1

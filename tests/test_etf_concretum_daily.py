@@ -118,9 +118,11 @@ def test_top_and_bottom_split_on_lagged_sharpe():
     assert top_meta["n_scored"] >= 8
     assert top_meta["n_selected"] >= 1
     assert bot_meta["n_selected"] >= 1
-    assert set(top).isdisjoint(set(bot)) or not top or not bot
-    if top:
-        assert all(v > 0 for v in top.values()) or any(v != 0 for v in top.values())
+    top_live = {k: v for k, v in top.items() if v != 0.0}
+    bot_live = {k: v for k, v in bot.items() if v != 0.0}
+    assert set(top_live).isdisjoint(set(bot_live)) or not top_live or not bot_live
+    if top_live:
+        assert all(v > 0 for v in top_live.values()) or any(v != 0 for v in top_live.values())
     fields = pivot_fields(ohlcv)
     strat, _ = strategy_returns(fields)
     assert strat.notna().any().any()
